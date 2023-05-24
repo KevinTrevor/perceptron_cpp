@@ -11,14 +11,23 @@
 #include <vector>
 #include <numeric>
 #include <random>
+#include <fstream>
+#include <sstream>
+#include <string>
 #include <cmath>
 #include <utility>
 #include <cstdlib>
 #include <ctime>
 
 using std::vector;
-using std::cout;
 using std::string;
+using std::fstream;
+using std::cout;
+using std::getline;
+using std::stoi;
+using std::stof;
+using std::istringstream;
+using std::to_string;
 using std::mt19937;
 using std::uniform_real_distribution;
 using std::exp;
@@ -32,7 +41,7 @@ const int ROWS_NUM = 16;
 const int RANDOM_STATE = 42;
 const float MIN_WEIGHT_VALUE = -1.0;
 const float MAX_WEIGHT_VALUE = 1.0;
-const float BIAS_INITIAL_VALUE = -0.9954;
+const float BIAS_INITIAL_VALUE = -1.8;
 const float LEARNING_RATE = 0.03;
 const int ITERATION_NUMBER = 500;
 
@@ -45,6 +54,82 @@ vector<int> eExpected = {0, 1, 0, 0, 0};
 vector<int> iExpected = {0, 0, 1, 0, 0};
 vector<int> oExpected = {0, 0, 0, 1, 0};
 vector<int> uExpected = {0, 0, 0, 0, 1};
+
+class FileManager {
+    public:
+        fstream file;
+        string mode;
+        string filename;
+
+        FileManager(string aFilename, string aMode) {
+            filename = aFilename;
+            mode = aMode;
+            get_file();
+        };
+
+        vector<vector<float>> parse_float_matrix() {
+            vector<vector<float>> matrix;
+            string str_line;
+            for(int i = 0; i < 16; i++) {
+                getline(file, str_line);
+                vector<float> row = {};
+                istringstream iss(str_line);
+                string token;
+
+                while (iss >> token) {
+                    row.push_back(stof(token));
+                };
+
+                matrix.push_back(row);
+            }
+            return matrix;
+        };
+
+        vector<vector<int>> parse_integer_matrix() {
+            vector<vector<int>> matrix;
+            string str_line;
+            for(int i = 0; i < 16; i++) {
+                getline(file, str_line);
+                vector<int> row = {};
+                istringstream iss(str_line);
+                string token;
+
+                while (iss >> token) {
+                    row.push_back(stoi(token));
+                };
+
+                matrix.push_back(row);
+            }
+            return matrix;
+        };
+
+        float parse_float() {
+            float number;
+            string str_line;
+            getline(file, str_line);
+            number = stof(str_line);
+
+            return number;
+        }
+
+        void get_file() {
+            if (mode == "write") {
+                file.open(filename, std::ios::out);
+            } else {
+                file.open(filename, std::ios::in);
+            }
+            
+        };
+
+        void write(string words) {
+            file << words;
+        };
+
+        void line_break() {
+            string str_line;
+            getline(file, str_line);
+        }
+};
 
 /**
  * @brief Clase Perceptron que modela la neurona propuesta por Frank Rosenblatt.
@@ -168,6 +253,24 @@ class Perceptron {
             };
         };
 
+        /**
+         * @brief Método utilizado para retornar el vector de pesos de la neurona en una cadena de caracteres.
+        */
+        string weights_to_string() {
+            string result = "";
+            for (vector<float> weight : weights) {
+                string row = "";
+                for (float w : weight) {
+                    row += to_string(w) + " ";
+                };
+                row = row.substr(0, row.length() - 1);
+                result += row + "\n";
+            };
+            string bias_str = to_string(bias);
+            result += bias_str.substr(0, bias_str.length() - 4) + "\n\n";
+            return result;
+        };
+
         // SETTERS
 
         /**
@@ -284,7 +387,7 @@ class NeuralNetwork {
         vector<int> competition(vector<float> results) {
             vector<int> output = {0, 0, 0, 0, 0};
             int index = -1;
-            float min_output = 0.0;
+            float min_output = 0.3;
             for (int i = 0; i < results.size(); i++) {
                 if (results[i] > min_output) {
                     min_output = results[i];
@@ -319,23 +422,48 @@ class NeuralNetwork {
          * @param output Parámetro de tipo vector de enteros que representa la salida de la red neuronal.
         */
         void show_results(vector<int> output) {
-            for (float out : output) {
-                cout << out << " ";
+            vector<char> letters = {'a', 'e', 'i', 'o', 'u'};
+            for (int i = 0; i < output.size(); i++) {
+                if (output[i] == 1) {
+                   cout << "Esto es una " << letters[i];
+                };
+            };
+        };
+
+        // KNOWLEDGE BASE
+
+        void import_knowledge_base() {
+            FileManager fileManager("base.txt", "read");
+            for (Perceptron &perceptron : perceptrons) {
+                vector<vector<float>> weights = fileManager.parse_float_matrix();
+                float bias = fileManager.parse_float();
+                fileManager.line_break();
+
+                perceptron.set_weights(weights);
+                perceptron.set_bias(bias);
+            }
+        };
+
+        void export_knowledge_base() {
+            FileManager fileManager("base.txt", "write");
+
+            for (Perceptron perceptron : perceptrons) {
+                string perceptron_info = perceptron.weights_to_string();
+                fileManager.write(perceptron_info);
             };
         };
 };
 
+/*
+vector<pair<vector<vector<int>>, vector<int>>> get_patterns() {
+    return nullptr;
+};
+*/
+
 // CÓDIGO PARA TESTING DE LA RED NEURONAL
 
-NeuralNetwork train_network(NeuralNetwork neural, vector<pair<vector<vector<int>>, vector<int>>> patterns) {
-    //neural.show_neural_weights();
-    neural.training(patterns);
-    //neural.show_neural_weights();
-    return neural;
-};
-
 void resolve_network(NeuralNetwork neural, vector<vector<vector<int>>> inputVector) {
-    neural.show_neural_weights();
+    //neural.show_neural_weights();
     for (int i = 0; i < inputVector.size(); i++) {
         neural.show_results(neural.resolve(inputVector[i]));
         cout << "\n";
@@ -538,6 +666,25 @@ int main(){
 {0,0,0,0,0,0,0,0,0,0}
     };
 
+    vector<vector<int>> testU = {
+        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 
+{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 
+{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 
+{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 
+{0, 1, 0, 0, 0, 0, 0, 0, 1, 0}, 
+{0, 1, 0, 0, 0, 0, 0, 0, 1, 0}, 
+{0, 1, 0, 0, 0, 0, 0, 0, 1, 0}, 
+{0, 1, 0, 0, 0, 0, 0, 0, 1, 0}, 
+{0, 1, 0, 0, 0, 0, 0, 0, 1, 0}, 
+{0, 1, 0, 0, 0, 0, 0, 0, 1, 0}, 
+{0, 0, 1, 0, 0, 0, 0, 0, 1, 0}, 
+{0, 0, 1, 0, 0, 0, 0, 1, 1, 0}, 
+{0, 0, 1, 1, 0, 0, 0, 1, 1, 1}, 
+{0, 0, 0, 1, 1, 1, 1, 1, 0, 1}, 
+{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 
+{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+    };
+
     pair<vector<vector<int>>, vector<int>> a_1(inputA_1, aExpected);
     pair<vector<vector<int>>, vector<int>> e_1(inputE_1, eExpected);
     pair<vector<vector<int>>, vector<int>> i_1(inputI_1, iExpected);
@@ -552,8 +699,16 @@ int main(){
 
     vector<pair<vector<vector<int>>, vector<int>>> patterns = {a_1, e_1, i_1, o_1, u_1, a_2, e_2, i_2, o_2, u_2};
 
-    vector<vector<vector<int>>> inputVector = {inputA_1, inputE_1, inputI_1, inputO_1, inputU_1, inputA_2, inputE_2, inputI_2, inputO_2, inputU_2};
-    neural.training(patterns);
+    vector<vector<vector<int>>> inputVector = {inputA_1, inputE_1, inputI_1, inputO_1, inputU_1};
+    //neural.training(patterns);
+    //neural.export_knowledge_base();
+    neural.import_knowledge_base();
+
+    /*
+    for (int i = 0; i < 5; i++) {
+        cout << neural.perceptrons[i].weights_to_string();
+    }
+    */
 
     resolve_network(neural, inputVector);
 
