@@ -6,6 +6,30 @@
  * Enunciado: Desarrolle una RNA basada en el Perceptron Simple que permita el reconocimiento 
  * de letras minúsculas (vocales: a, e, i, o, u) manuscritas. La entrada será un archivo contentivo 
  * del caracter fotografiado, o una matriz 16x10 que simule el caracter, a analizar.
+ * 
+ * Entrada: Para iniciar el reconocimiento de una vocal debemos tener un archivo .txt llamado "input.txt"
+ * en el mismo directorio donde se encuentra nuestro archivo perceptron_sigmoid_pair.cpp, además de la 
+ * base de conocimiento "base.txt". El formato que debe tener esta entrada es:
+ * 
+ * 0 0 0 0 0 0 0 0 0 0 
+ * 0 0 0 0 0 0 0 0 0 0 
+ * 0 0 0 0 0 0 0 0 0 0 
+ * 0 0 0 0 0 0 0 0 0 0 
+ * 0 0 0 0 0 0 0 0 0 0 
+ * 0 0 0 0 0 0 0 0 0 0 
+ * 0 1 0 0 0 0 0 1 0 0 
+ * 0 1 0 0 0 0 0 1 0 0 
+ * 0 1 0 0 0 0 0 1 0 0 
+ * 0 1 0 0 0 0 0 1 0 0 
+ * 0 1 1 0 0 0 0 1 0 0 
+ * 0 0 1 0 0 0 0 1 0 0 
+ * 0 0 1 1 0 0 1 1 1 0 
+ * 0 0 0 0 1 1 0 0 1 0 
+ * 0 0 0 0 0 0 0 0 0 1 
+ * 0 0 0 0 0 0 0 0 0 0
+ * 
+ * No debe haber saltos de línea en la parte de arriba. Es decir, la línea número 1 es la 
+ * fila número 1 de la matriz.
 */
 #include <iostream>
 #include <vector>
@@ -38,35 +62,43 @@ using std::rand;
 
 const int COLUMNS_NUM = 10;
 const int ROWS_NUM = 16;
+const int PATTERNS_NUM = 30;
 const int RANDOM_STATE = 42;
 const float MIN_WEIGHT_VALUE = -1.0;
 const float MAX_WEIGHT_VALUE = 1.0;
-const float BIAS_INITIAL_VALUE = -1.8;
-const float LEARNING_RATE = 0.03;
-const int ITERATION_NUMBER = 500;
-
+const float LEARNING_RATE = 0.05;
+const int ITERATION_NUMBER = 2000;
 mt19937 generator(RANDOM_STATE);
 uniform_real_distribution<> dist(MIN_WEIGHT_VALUE, MAX_WEIGHT_VALUE);
 
-// Valores esperados
-vector<int> aExpected = {1, 0, 0, 0, 0};
-vector<int> eExpected = {0, 1, 0, 0, 0};
-vector<int> iExpected = {0, 0, 1, 0, 0};
-vector<int> oExpected = {0, 0, 0, 1, 0};
-vector<int> uExpected = {0, 0, 0, 0, 1};
-
+/**
+ * @brief Clase FileManager que se encarga de manejar la apertura, lectura y escritura de archivos .txt.  
+*/
 class FileManager {
     public:
         fstream file;
         string mode;
         string filename;
 
+        /**
+         * @brief Constructor de la clase FileManager.
+         * 
+         * @param aFilename Parámetro de tipo cadena de caracteres que representa el nombre del archivo. 
+         * @param aMode Parámetro de tipo cadena de caracteres que representa el modo de apertura del 
+         * archivo (lectura o escritura).
+        */
         FileManager(string aFilename, string aMode) {
             filename = aFilename;
             mode = aMode;
             get_file();
         };
 
+        /**
+         * @brief Método utilizado para parsear una matriz de números de coma flotante dentro de un archivo 
+         * .txt.
+         * 
+         * @return Vector de vectores de números de coma flotante (matriz de números reales).
+        */
         vector<vector<float>> parse_float_matrix() {
             vector<vector<float>> matrix;
             string str_line;
@@ -85,6 +117,11 @@ class FileManager {
             return matrix;
         };
 
+        /**
+         * @brief Método utilizado para parsear una matriz de números enteros dentro de un archivo .txt.
+         * 
+         * @return Vector de vectores de números enteros (matriz de números enteros).
+        */
         vector<vector<int>> parse_integer_matrix() {
             vector<vector<int>> matrix;
             string str_line;
@@ -103,6 +140,11 @@ class FileManager {
             return matrix;
         };
 
+        /**
+         * @brief Método utilizado para parsear un número de coma flotante dentro de un archivo .txt.
+         * 
+         * @return Número de coma flotante (número real).
+        */
         float parse_float() {
             float number;
             string str_line;
@@ -112,6 +154,11 @@ class FileManager {
             return number;
         }
 
+        // Extras
+
+        /**
+         * @brief Método utilizado para obtener el archivo .txt en el modo especificado por la clase.
+        */
         void get_file() {
             if (mode == "write") {
                 file.open(filename, std::ios::out);
@@ -121,10 +168,16 @@ class FileManager {
             
         };
 
+        /**
+         * @brief Método utilizado para escribir en el archivo .txt dado por la clase.
+        */
         void write(string words) {
             file << words;
         };
 
+        /**
+         * @brief Método utilizado para saltar de línea en el archivo .txt dado por la clase.
+        */
         void line_break() {
             string str_line;
             getline(file, str_line);
@@ -150,12 +203,11 @@ class Perceptron {
          * @param aLearningRate Parámetro de tipo flotante necesario para otorgar la razón de aprendizaje de la neurona. 
          * @param aRandomState Parámetro de tipo entero necesario para otorgar la semilla de aleatoriedad para generar 
          * los pesos de la neurona.
-         
         */
         Perceptron(float aLearningRate, int aRandomState) {
             learningRate = aLearningRate;
             randomState = aRandomState;
-            bias = BIAS_INITIAL_VALUE;
+            initialize_bias();
             initialize_weights();
         };
 
@@ -165,7 +217,9 @@ class Perceptron {
          * sesgo (o bias). Fórmula: sum(x * w) + bias
          * 
          * @param inputValues Parámetro de tipo vector de vectores de enteros (matriz de enteros) que hace referencia 
-         * a los valores de entrada de la neurona. 
+         * a los valores de entrada de la neurona.
+         * 
+         * @return Número de coma flotante (resultado de la suma ponderada).
         */
         float net_input(vector<vector<int>> inputValues) {
             float result = 0;
@@ -183,6 +237,8 @@ class Perceptron {
          * 
          * @param inputValues Parámetro de tipo vector de vectores de enteros (matriz de enteros) que hace referencia 
          * a los valores de entrada de la neurona.
+         * 
+         * @return Número de coma flotante (salida de la función sigmoide evaluada en el resultado de la suma ponderada).
         */
         float activation_function(vector<vector<int>> inputValues) {
             float weightedSum = net_input(inputValues);
@@ -227,9 +283,6 @@ class Perceptron {
 
         /**
          * @brief Método utilizado para inicializar el vector de pesos de la neurona aleatoriamente.
-         * 
-         * @param weightsNumber Parámetro de tipo entero que determina el número de pesos que serán 
-         * incializados para la neurona. 
         */
         void initialize_weights() {
             for (int i = 0; i < ROWS_NUM; i++) {
@@ -239,6 +292,13 @@ class Perceptron {
                 };
                 weights.push_back(new_row);
             };
+        };
+
+        /**
+         * @brief Método utilizado para inicializar el valor del bias (o sesgo ) de la neurona aleatoriamente.
+        */
+        void initialize_bias() {
+            bias = dist(generator);
         };
 
         /**
@@ -255,6 +315,8 @@ class Perceptron {
 
         /**
          * @brief Método utilizado para retornar el vector de pesos de la neurona en una cadena de caracteres.
+         * 
+         * @return Cadena de caracteres que representan la matriz de pesos y el bias (o sesgo) de la neurona.
         */
         string weights_to_string() {
             string result = "";
@@ -267,7 +329,7 @@ class Perceptron {
                 result += row + "\n";
             };
             string bias_str = to_string(bias);
-            result += bias_str.substr(0, bias_str.length() - 4) + "\n\n";
+            result += bias_str + "\n\n";
             return result;
         };
 
@@ -317,14 +379,13 @@ class NeuralNetwork {
         }
 
         /**
-         * @brief Método utilizado para procesar un patrón específico con la red neuronal. Este método utiliza la Regla Delta 
-         * para cambiar los pesos y el sesgo (o bias) de cada uno de sus perceptrones (neuornas), si y solo si, la diferencia 
-         * entre el valor esperado y el valor obtenido es diferente de 0.
+         * @brief Método utilizado para procesar un patrón específico con la red neuronal.
          * 
          * @param inputValues Parámetro de tipo vector de vectores de enteros que representa la entrada de la red neuronal.
-         * @param expectedValues Parámetro de tipo vector de enteros que representa la salida esperada de la red neuronal.
+         * 
+         * @return Vector de números de coma flotante (salidas de la función de activación de cada neurona de la red neuronal).
         */
-        vector<float> process_input(vector<vector<int>> inputValues, vector<int> expectedValues) {
+        vector<float> process_input(vector<vector<int>> inputValues) {
             vector<float> output = {};
             for (int i = 0; i < perceptrons.size(); i++) {
                 float predict = perceptrons[i].activation_function(inputValues);
@@ -347,7 +408,7 @@ class NeuralNetwork {
                 int index = rand() % n;
                 vector<vector<int>> input = patterns[index].first;
                 vector<int> expectedValue = patterns[index].second;
-                vector<float> output = process_input(input, expectedValue);
+                vector<float> output = process_input(input);
                 
                 for (int i = 0; i < output.size(); i++) {
                     int outputValue = round(output[i]);
@@ -366,6 +427,8 @@ class NeuralNetwork {
          * 
          * @param inputValues Parámetro de tipo vector de vectores de enteros que representa la entrada 
          * de la red neuronal.
+         * 
+         * @return Vector de números enteros (respuesta de la red neuronal ante un patrón de entrada).
         */
         vector<int> resolve(vector<vector<int>> inputValues) {
             vector<float> output = {};
@@ -383,11 +446,13 @@ class NeuralNetwork {
          * 
          * @param results Parámetro de tipo vector de números de coma flotante que representa los acercamientos 
          * de cada neurona de la red neuronal.
+         * 
+         * @return Vector de números enteros (vectores canónicos [respuesta única] o vector nulo [sin respuesta]).
         */
         vector<int> competition(vector<float> results) {
             vector<int> output = {0, 0, 0, 0, 0};
             int index = -1;
-            float min_output = 0.3;
+            float min_output = 0.15;
             for (int i = 0; i < results.size(); i++) {
                 if (results[i] > min_output) {
                     min_output = results[i];
@@ -402,36 +467,25 @@ class NeuralNetwork {
         };
 
         /**
-         * @brief Método utilizado para mostrar el vector de pesos de cada neurona de red neuronal 
-         * en la consola.
-        */
-        void show_neural_weights() {
-            int count = 0;
-            for (Perceptron perc : perceptrons) {
-                cout << "Perceptron nº" << count << "\n";
-                perc.show_weights();
-                cout << "\n";
-                cout << "Bias Perceptron nº" << count << ": " << perc.bias << "\n";
-                count++;
-            };
-        };
-
-        /**
          * @brief Método utilizado para mostrar el vector de respuesta de la red neuronal en la consola.
          * 
          * @param output Parámetro de tipo vector de enteros que representa la salida de la red neuronal.
         */
-        void show_results(vector<int> output) {
-            vector<char> letters = {'a', 'e', 'i', 'o', 'u'};
+        string show_results(vector<int> output) {
+            vector<string> vowels = {"a", "e", "i", "o", "u"};
             for (int i = 0; i < output.size(); i++) {
                 if (output[i] == 1) {
-                   cout << "Esto es una " << letters[i];
+                    return "Esto es una vocal " + vowels[i] + ".";
                 };
             };
+            return "No reconozco esta letra.";
         };
 
         // KNOWLEDGE BASE
 
+        /**
+         * @brief Método utilizado para importar la base de conocimiento de la red neuronal a tarvés de un .txt.
+        */
         void import_knowledge_base() {
             FileManager fileManager("base.txt", "read");
             for (Perceptron &perceptron : perceptrons) {
@@ -444,6 +498,9 @@ class NeuralNetwork {
             }
         };
 
+        /**
+         * @brief Método utilizado para exportar la base de conocimiento de la red neuronal a tarvés de un .txt.
+        */
         void export_knowledge_base() {
             FileManager fileManager("base.txt", "write");
 
@@ -454,263 +511,49 @@ class NeuralNetwork {
         };
 };
 
-/*
-vector<pair<vector<vector<int>>, vector<int>>> get_patterns() {
-    return nullptr;
-};
+/**
+ * @brief Función que toma los patrones (a través de unos .txt de ejemplos) utilizados para 
+ * el entrenamiento de una red neuronal.
+ * 
+ * @param expectedValues Parámetro de tipo vector de vectores de enteros que representan los posibles
+ * valores esperados de los patrones (vocales).
+ * 
+ * @return Vector de pares ordenados de matrices de enteros y vectores de enteros 
+ * (entradas de la red y su salida esperada).
 */
-
-// CÓDIGO PARA TESTING DE LA RED NEURONAL
-
-void resolve_network(NeuralNetwork neural, vector<vector<vector<int>>> inputVector) {
-    //neural.show_neural_weights();
-    for (int i = 0; i < inputVector.size(); i++) {
-        neural.show_results(neural.resolve(inputVector[i]));
-        cout << "\n";
+vector<pair<vector<vector<int>>, vector<int>>> get_patterns(vector<vector<int>> expectedValues) {
+    string path = "patterns/";
+    vector<string> files = {"ejemplosA.txt", "ejemplosE.txt", "ejemplosI.txt", "ejemplosO.txt", "ejemplosU.txt"};
+    vector<pair<vector<vector<int>>, vector<int>>> patterns;
+    for (int i = 0; i < files.size(); i++) {
+        FileManager fileManager(path + files[i], "read");
+        for (int j = 0; j < PATTERNS_NUM; j++) {
+            vector<vector<int>> pattern = fileManager.parse_integer_matrix();
+            fileManager.line_break();
+            pair<vector<vector<int>>, vector<int>> pairIO = {pattern, expectedValues[i]};
+            patterns.push_back(pairIO);
+        };
     };
+    return patterns;
 };
 
 int main(){
-    // La forma más engorrosa de determinar los números aleatorios
     srand(static_cast<unsigned int>(std::time(nullptr)));
+
+    NeuralNetwork neuralNetwork(5, ITERATION_NUMBER);
     
-    NeuralNetwork neural(5, ITERATION_NUMBER);
-    
-    vector<vector<int>> inputA_1 = {
-        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 1, 1, 1, 1, 1, 1, 0, 0},
-{0, 1, 1, 1, 0, 0, 1, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 1, 0, 0, 1, 1, 1, 0},
-{0, 0, 1, 1, 1, 1, 1, 1, 1, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 1, 1},
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-    };
+    // Importa la base de conocimiento para el reconocimiento de vocales minusculas
+    neuralNetwork.import_knowledge_base();
 
-    vector<vector<int>> inputA_2 = {
-        {0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,1,1,1,1,0,0,0},
-{0,0,1,1,1,1,1,1,0,0},
-{0,1,1,1,0,0,1,1,1,0},
-{0,1,1,0,0,0,0,1,1,0},
-{0,1,1,0,0,0,0,1,1,0},
-{0,1,1,0,0,0,0,1,1,0},
-{0,1,1,0,0,0,0,1,1,0},
-{0,1,1,0,0,0,0,1,1,0},
-{0,1,1,1,0,0,1,1,1,0},
-{0,0,1,1,1,1,1,1,1,0},
-{0,0,0,1,1,1,1,0,1,1},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0}
-    };
+    // Matriz de entrada con la vocal a analizar
+    FileManager fileManager("input.txt", "read");
+    vector<vector<int>> inputMatrix = fileManager.parse_integer_matrix();
 
-    vector<vector<int>> inputE_1 = {
-        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 1, 1, 1, 1, 1, 1, 0, 0},
-{0, 1, 1, 1, 1, 1, 1, 1, 1, 0},
-{0, 1, 1, 1, 0, 0, 1, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 1, 1, 1, 1, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 0, 0, 0},
-{0, 1, 1, 0, 0, 0, 0, 0, 0, 0},
-{0, 1, 1, 1, 1, 1, 1, 1, 0, 0},
-{0, 0, 1, 1, 1, 1, 1, 1, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-    };
-
-    vector<vector<int>> inputE_2 = {
-        {0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,1,1,1,1,0,0,0},
-{0,0,1,1,1,1,1,1,0,0},
-{0,0,1,1,0,0,1,1,0,0},
-{0,1,1,0,0,0,0,1,1,0},
-{0,1,1,0,0,0,0,1,1,0},
-{0,1,1,1,1,1,1,1,1,0},
-{0,1,1,0,0,0,0,0,0,0},
-{0,1,1,0,0,0,0,0,0,0},
-{0,1,1,1,0,0,0,0,0,0},
-{0,0,1,1,1,1,1,1,0,0},
-{0,0,0,1,1,1,1,1,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0}
-    };
-
-    vector<vector<int>> inputI_1 = {
-        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-    };
-
-    vector<vector<int>> inputI_2 = {
-        {0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,1,1,0,0,0,0},
-{0,0,0,0,1,1,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,1,1,0,0,0,0},
-{0,0,0,0,1,1,0,0,0,0},
-{0,0,0,0,1,1,0,0,0,0},
-{0,0,0,0,1,1,0,0,0,0},
-{0,0,0,0,1,1,0,0,0,0},
-{0,0,0,0,1,1,0,0,0,0},
-{0,0,0,0,1,1,0,0,0,0},
-{0,0,0,0,1,1,0,0,0,0},
-{0,0,0,0,1,1,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0}
-    };
-
-    vector<vector<int>> inputO_1 = {
-        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 1, 1, 1, 1, 1, 1, 0, 0},
-{0, 1, 1, 1, 0, 0, 1, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 1, 0, 0, 1, 1, 1, 0},
-{0, 0, 1, 1, 1, 1, 1, 1, 0, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 0, 0},
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-    };
-
-    vector<vector<int>> inputO_2 = {
-        {0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,1,1,1,1,0,0,0},
-{0,0,1,1,1,1,1,1,0,0},
-{0,1,1,1,0,0,1,1,1,0},
-{0,1,1,0,0,0,0,1,1,0},
-{0,1,1,0,0,0,0,1,1,0},
-{0,1,1,0,0,0,0,1,1,0},
-{0,1,1,0,0,0,0,1,1,0},
-{0,1,1,1,0,0,1,1,1,0},
-{0,0,1,1,1,1,1,1,0,0},
-{0,0,0,1,1,1,1,0,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0}
-    };
-
-    vector<vector<int>> inputU_1 = {
-        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 0, 0, 0, 0, 1, 1, 0},
-{0, 1, 1, 1, 0, 0, 1, 1, 1, 0},
-{0, 0, 1, 1, 1, 1, 1, 1, 1, 0},
-{0, 0, 0, 1, 1, 1, 1, 0, 1, 1},
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-    };
-
-    vector<vector<int>> inputU_2 = {
-        {0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,1,1,0,0,0,0,1,1,0},
-{0,1,1,0,0,0,0,1,1,0},
-{0,1,1,0,0,0,0,1,1,0},
-{0,1,1,0,0,0,0,1,1,0},
-{0,1,1,0,0,0,0,1,1,0},
-{0,1,1,1,0,0,1,1,1,0},
-{0,0,1,1,1,1,1,1,1,0},
-{0,0,0,1,1,1,1,0,1,1},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0},
-{0,0,0,0,0,0,0,0,0,0}
-    };
-
-    vector<vector<int>> testU = {
-        {0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 
-{0, 1, 0, 0, 0, 0, 0, 0, 1, 0}, 
-{0, 1, 0, 0, 0, 0, 0, 0, 1, 0}, 
-{0, 1, 0, 0, 0, 0, 0, 0, 1, 0}, 
-{0, 1, 0, 0, 0, 0, 0, 0, 1, 0}, 
-{0, 1, 0, 0, 0, 0, 0, 0, 1, 0}, 
-{0, 1, 0, 0, 0, 0, 0, 0, 1, 0}, 
-{0, 0, 1, 0, 0, 0, 0, 0, 1, 0}, 
-{0, 0, 1, 0, 0, 0, 0, 1, 1, 0}, 
-{0, 0, 1, 1, 0, 0, 0, 1, 1, 1}, 
-{0, 0, 0, 1, 1, 1, 1, 1, 0, 1}, 
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, 
-{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
-    };
-
-    pair<vector<vector<int>>, vector<int>> a_1(inputA_1, aExpected);
-    pair<vector<vector<int>>, vector<int>> e_1(inputE_1, eExpected);
-    pair<vector<vector<int>>, vector<int>> i_1(inputI_1, iExpected);
-    pair<vector<vector<int>>, vector<int>> o_1(inputO_1, oExpected);
-    pair<vector<vector<int>>, vector<int>> u_1(inputU_1, uExpected);
-
-    pair<vector<vector<int>>, vector<int>> a_2(inputA_2, aExpected);
-    pair<vector<vector<int>>, vector<int>> e_2(inputE_2, eExpected);
-    pair<vector<vector<int>>, vector<int>> i_2(inputI_2, iExpected);
-    pair<vector<vector<int>>, vector<int>> o_2(inputO_2, oExpected);
-    pair<vector<vector<int>>, vector<int>> u_2(inputU_2, uExpected);
-
-    vector<pair<vector<vector<int>>, vector<int>>> patterns = {a_1, e_1, i_1, o_1, u_1, a_2, e_2, i_2, o_2, u_2};
-
-    vector<vector<vector<int>>> inputVector = {inputA_1, inputE_1, inputI_1, inputO_1, inputU_1};
-    //neural.training(patterns);
-    //neural.export_knowledge_base();
-    neural.import_knowledge_base();
-
-    /*
-    for (int i = 0; i < 5; i++) {
-        cout << neural.perceptrons[i].weights_to_string();
-    }
-    */
-
-    resolve_network(neural, inputVector);
+    // Resultados
+    cout << "===============================\nJimmy Neuron necesita pensar...\n";
+    vector<int> output = neuralNetwork.resolve(inputMatrix);
+    string neuralResult = neuralNetwork.show_results(output);
+    cout << neuralResult << "\n===============================";
 
     return 0;
 };
