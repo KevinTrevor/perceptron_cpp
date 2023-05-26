@@ -67,7 +67,7 @@ const int RANDOM_STATE = 42;
 const float MIN_WEIGHT_VALUE = -1.0;
 const float MAX_WEIGHT_VALUE = 1.0;
 const float LEARNING_RATE = 0.05;
-const int ITERATION_NUMBER = 2000;
+const int ITERATION_NUMBER = 2500;
 mt19937 generator(RANDOM_STATE);
 uniform_real_distribution<> dist(MIN_WEIGHT_VALUE, MAX_WEIGHT_VALUE);
 
@@ -547,13 +547,18 @@ int main(){
 
     // Matriz de entrada con la vocal a analizar
     FileManager fileManager("input.txt", "read");
-    vector<vector<int>> inputMatrix = fileManager.parse_integer_matrix();
 
-    // Resultados
-    cout << "===============================\nJimmy Neuron necesita pensar...\n";
-    vector<int> output = neuralNetwork.resolve(inputMatrix);
-    string neuralResult = neuralNetwork.show_results(output);
-    cout << neuralResult << "\n===============================";
+    cout << "===============================\n";
+    while (!fileManager.file.eof()) {
+        vector<vector<int>> inputMatrix = fileManager.parse_integer_matrix();
+        fileManager.line_break();
+
+        // Resultados
+        cout << "Jimmy Neuron necesita pensar...\n";
+        vector<int> output = neuralNetwork.resolve(inputMatrix);
+        string neuralResult = neuralNetwork.show_results(output);
+        cout << neuralResult << "\n===============================\n";
+    };
 
     return 0;
 };
