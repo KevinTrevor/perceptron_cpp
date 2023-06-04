@@ -7,9 +7,9 @@
  * de letras minúsculas (vocales: a, e, i, o, u) manuscritas. La entrada será un archivo contentivo 
  * del caracter fotografiado, o una matriz 16x10 que simule el caracter, a analizar.
  * 
- * Entrada: Para iniciar el reconocimiento de una vocal debemos tener un archivo .txt llamado "input.txt"
- * en el mismo directorio donde se encuentra nuestro archivo perceptron_sigmoid_pair.cpp, además de la 
- * base de conocimiento "base.txt". El formato que debe tener esta entrada es:
+ * Entrada: Para iniciar el reconocimiento de una o varias vocales debemos tener un archivo .txt llamado 
+ * "input.txt" en el mismo directorio donde se encuentra nuestro archivo perceptron_sigmoid_pair.cpp, además 
+ * de la base de conocimiento "base.txt". El formato que debe tener esta entrada es:
  * 
  * 0 0 0 0 0 0 0 0 0 0 
  * 0 0 0 0 0 0 0 0 0 0 
@@ -28,8 +28,11 @@
  * 0 0 0 0 0 0 0 0 0 1 
  * 0 0 0 0 0 0 0 0 0 0
  * 
- * No debe haber saltos de línea en la parte de arriba. Es decir, la línea número 1 es la 
- * fila número 1 de la matriz.
+ * - No debe haber saltos de línea en la parte de arriba. Es decir, la línea número 1 es la 
+ * fila número 1 de la matriz. 
+ * - Pueden haber más de una vocal por archivo, simplemente dejando un espacio en blanco 
+ * entre las matrices.
+ * 
 */
 #include <iostream>
 #include <vector>
